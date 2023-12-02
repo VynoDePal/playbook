@@ -1,0 +1,137 @@
+---
+- name: Configuration of W
+  hosts: nsapooldos
+  become: true
+  tasks:
+    - name: Install Apache
+      apt:
+        name: apache2
+        state: present
+
+    - name: Install MariaDB
+      apt:
+        name: mariadb-server
+        state: latest
+
+    - name: Change hostname
+      become: yes
+      hostname:
+        name: nsapoold05
+
+    - name: Create user marvin
+      become: yes
+      user:
+        name: marvin
+        password: "{{ 'NsaPool42' | password_hash('sha512') }}"
+        home: /home/marvin
+        shell: /bin/bash
+
+    - name: Change welcome message
+      become: yes
+      lineinfile:
+        path: /etc/motd
+        line: 'Welcome to nsapoold05'
+
+    - name: Update repositories cache
+      become: yes
+      apt:
+        update_cache: yes
+
+    - name: Install packages
+      become: yes
+      apt:
+        name:
+          - git
+          - htop
+          - curl
+          - sudo
+          - unzip
+          - python3
+          - python3-pip
+        state: present
+
+    - name: Install Nginx
+      become: yes
+      apt:
+        name: nginx
+        state: latest
+
+    - name: Remove default Nginx configuration
+      become: yes
+      file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+
+    - name: Copy website files to Nginx root directory
+      become: yes
+      copy:
+        src: /root/
+        dest: /var/www/html/
+
+    - name: Create Nginx configuration for website
+      become: yes
+      copy:
+        content: |
+          server {
+            listen 80;
+            server_name localhost;
+
+            location / {
+              root /var/www/html;
+              index index.html;
+            }
+          }
+        dest: /etc/nginx/sites-available/website
+
+    - name: Restart Nginx
+      become: yes
+      systemd:
+        name: nginx
+        state: restarted
+
+    - name: Add repository for PHP 7.4
+      become: yes
+      apt_repository:
+        repo: ppa:ondrej/php
+        state: present
+
+    - name: Install PHP 7.4 and modules
+      become: yes
+      apt:
+        name:
+          - php7.4
+          - php7.4-cli
+          - php7.4-fpm
+          - php7.4-json
+          - php7.4-pdo
+          - php7.4-mysql
+          - php7.4-zip
+          - php7.4-gd
+          - php7.4-mbstring
+          - php7.4-curl
+          - php7.4-xml
+          - php-pear
+          - php7.4-bcmath
+          - php7.4-intl
+        state: present
+
+    - name: Set timezone in php.ini
+      become: yes
+      lineinfile:
+        path: /etc/php/7.4/fpm/php.ini
+        regexp: '^;date.timezone ='
+        line: 'date.timezone = Europe/Paris'
+      notify: Restart PHP-FPM
+
+  handlers:
+    - name: Restart network
+      become: yes
+      service:
+        name: network
+        state: restarted
+
+    - name: Restart PHP-FPM
+      become: yes
+      systemd:
+        name: php7.4-fpm
+        state: restarted
