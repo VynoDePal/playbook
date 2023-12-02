@@ -1,75 +1,66 @@
 ---
-- name: Configuration of W
-  hosts: nsapooldos
+- name: Configuration of VM
+  hosts: nsapoold05
   become: true
   tasks:
-    - name: Install Apache
+    - name: run apt autoremove
       apt:
-        name: apache2
-        state: present
+        autoremove: yes
+      become: yes
 
-    - name: Install MariaDB
+    - name:  run apt clean
       apt:
-        name: mariadb-server
-        state: latest
+        autoclean: yes
+      become: yes
 
     - name: Change hostname
-      become: yes
       hostname:
         name: nsapoold05
 
     - name: Create user marvin
-      become: yes
       user:
         name: marvin
         password: "{{ 'NsaPool42' | password_hash('sha512') }}"
         home: /home/marvin
-        shell: /bin/bash
+        createhome: yes
 
     - name: Change welcome message
-      become: yes
-      lineinfile:
-        path: /etc/motd
-        line: 'Welcome to nsapoold05'
-
-    - name: Update repositories cache
-      become: yes
-      apt:
-        update_cache: yes
+      copy:
+        content: "Welcome to nsapoold05\n"
+        dest: /etc/motd
+        owner: root
+        group: root
+        mode: '0644'
 
     - name: Install packages
-      become: yes
       apt:
-        name:
-          - git
-          - htop
-          - curl
-          - sudo
-          - unzip
-          - python3
-          - python3-pip
+        name: "{{ item }}"
         state: present
+      loop:
+        - git
+        - htop
+        - curl
+        - sudo
+        - unzip
+        - python3
+        - python3-pip
 
     - name: Install Nginx
-      become: yes
       apt:
         name: nginx
         state: latest
 
     - name: Remove default Nginx configuration
-      become: yes
       file:
         path: /etc/nginx/sites-enabled/default
         state: absent
 
     - name: Copy website files to Nginx root directory
-      become: yes
       copy:
         src: /root/
         dest: /var/www/html/
 
     - name: Create Nginx configuration for website
-      become: yes
       copy:
         content: |
           server {
@@ -89,49 +80,33 @@
         name: nginx
         state: restarted
 
-    - name: Add repository for PHP 7.4
-      become: yes
-      apt_repository:
-        repo: ppa:ondrej/php
-        state: present
-
-    - name: Install PHP 7.4 and modules
-      become: yes
+    - name: Install PHP and modules
       apt:
         name:
-          - php7.4
-          - php7.4-cli
-          - php7.4-fpm
-          - php7.4-json
-          - php7.4-pdo
-          - php7.4-mysql
-          - php7.4-zip
-          - php7.4-gd
-          - php7.4-mbstring
-          - php7.4-curl
-          - php7.4-xml
+          - php-cli
+          - php-fpm
+          - php-json
+          - php-pdo
+          - php-mysql
+          - php-zip
+          - php-gd
+          - php-mbstring
+          - php-curl
+          - php-xml
           - php-pear
-          - php7.4-bcmath
-          - php7.4-intl
+          - php-bcmath
+          - php-intl
         state: present
 
     - name: Set timezone in php.ini
-      become: yes
       lineinfile:
-        path: /etc/php/7.4/fpm/php.ini
-        regexp: '^;date.timezone ='
+        path: /etc/php/7.4/cli/php.ini
+        regexp: '^;?date.timezone ='
         line: 'date.timezone = Europe/Paris'
-      notify: Restart PHP-FPM
 
   handlers:
     - name: Restart network
       become: yes
       service:
         name: network
-        state: restarted
-
-    - name: Restart PHP-FPM
-      become: yes
-      systemd:
-        name: php7.4-fpm
         state: restarted
